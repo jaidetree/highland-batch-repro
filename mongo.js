@@ -14,7 +14,10 @@ function range (start, end) {
   return xs;
 }
 
-// prepareDB :: [{ _id: Number }] -> MongoClient -> MongoCollection
+// prepareDB :: [{ _id: Number }] -> MongoClient -> {
+//    col: MongoCollection,
+//    client: MongoClient,
+// }
 // Takes a list of docs
 // Returns a function that takes a mongodb connection and...
 // - selects the test db
@@ -36,14 +39,14 @@ function prepareDB (docs) {
      .map(action => _(action()))
      .mergeWithLimit(1)
      .last()
-     .map(() => col);
+     .map(() => ({ col, client }));
   };
 }
 
 // fetchDocs :: MongoCollection -> ReadableStream<Doc>
 // Takes a MongoCollection of test docs
 // Returns a stream of batched doc results
-function fetchDocs (col) {
+function fetchDocs ({ client, col }) {
   const cursor = col.find();
 
   cursor.batchSize(2);
@@ -53,8 +56,16 @@ function fetchDocs (col) {
   source.on("end", () => {
     console.log("END");
   });
+  source.on("close", () => {
+    console.log("CLOSE");
+  });
 
-  return _(source);
+  return _(source)
+    .batch(11)
+    .consume(logMechanics)
+    .flatMap(_)
+    .reduce(append, [])
+    .map(docs => ({ docs, client }));
 }
 
 function logMechanics (err, x, push, next) {
@@ -115,25 +126,24 @@ const opts = {
 };
 
 
+
 _(MongoClient.connect('mongodb://root:example@mongo:27017', opts))
  .flatMap(prepareDB(docs))
  .flatMap(fetchDocs)
- .batch(11)
- .consume(logMechanics)
- .flatMap(_)
- .reduce(append, [])
- .toCallback((err, xs) => {
+ .toCallback((err, results) => {
    if (err) {
      console.error(err);
      process.exit(1);
    }
 
-   assert.deepEqual(xs, docs, `DOCS WERE NOT RETUREND. INSTEAD FOUND "${xs}"`);
+   assert.deepEqual(results.docs, docs, `DOCS WERE NOT RETUREND. INSTEAD FOUND "${xs}"`);
 
-   console.log("Completed!", xs);
+   console.log("Completed!", results.docs);
+   results.client.close();
+   process.exit(0);
  });
 
-timeout(2000)
+timeout(6000)
   .done(() => {
     throw new Error("APPLICATION TIMED OUT");
     process.exit(1);
