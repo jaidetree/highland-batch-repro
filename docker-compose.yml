@@ -14,5 +14,6 @@ services:
     volumes:
       - ".:/source"
     environment:
-      ME_CONFIG_MONGODB_ADMINUSERNAME: root
-      ME_CONFIG_MONGODB_ADMINPASSWORD: example
+      MONGODB_URL: "root:example@mongo"
+    depends_on:
+      - mongo

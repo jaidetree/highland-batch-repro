@@ -94,7 +94,7 @@ const docs = range(0, 22)
       .map(_id => ({ _id }));
 
 // Create our mongodb connection opts
-const url = "mongodb://root:example@mongo:27017";
+const url = `mongodb://${process.env['MONGODB_URL']}:27017`;
 const opts = {
   useUnifiedTopology: true,
 };
