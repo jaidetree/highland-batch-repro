@@ -1,6 +1,5 @@
-const assert = require("assert");
 const _ = require("highland");
-const MongoClient = require('mongodb').MongoClient;
+const assert = require("assert");
 const MockMongo = require("./mock-mongo");
 
 // range :: (Number, Number) -> [Number]
@@ -13,17 +12,6 @@ function range (start, end) {
   }
 
   return xs;
-}
-
-// merge :: (...HighlandStream<*>) -> HighlandStream<*> -> HighlandStream<*>
-// Merge new streams into source stream
-// Takes any number of highland stream args
-// Returns a function that merges new streams into source stream then returns
-// the merged highland stream
-function merge (...streams) {
-  return source => _.merge(
-    [source].concat(streams),
-  );
 }
 
 // timeout :: Number -> HighlandStream<Number>
@@ -61,26 +49,6 @@ function logStream (err, x, push, next) {
   }
 }
 
-// fetchDocs :: MongoCollection -> ReadableStream<Doc>
-// Takes a MongoCollection of test docs
-// Returns a stream of batched doc results
-function fetchDocs (col) {
-  const cursor = col.find();
-
-  cursor.batchSize(2);
-  const source = cursor.stream();
-
-  // Make sure our mongodb stream is ending
-  source.on("end", () => {
-    console.log("END");
-  });
-  source.on("close", () => {
-    console.log("CLOSE");
-  });
-
-  return _(source);
-}
-
 
 // append :: ([xs], x) -> [xs... y]
 // Appends a value to the end of an array.
@@ -94,15 +62,15 @@ function append (xs, x) {
 const docs = range(0, 22)
       .map(_id => ({ _id }));
 
-// Create our mongodb connection opts
-const url = `mongodb://${process.env['MONGODB_URL']}:27017`;
-const opts = {
-  useUnifiedTopology: true,
-};
-
+// mockMongoStream :: * -> Readable
+// Creates a readable stream of docs emitting at a given interval
+// Takes no arguments
+// Returns a Node Readable stream
 function mockMongoStream () {
-  return _(docs)
-    .toNodeStream({ objectMode: true });
+  return new MockMongo({
+    docs,
+    interval: 100,
+  });
 }
 
 function main () {
