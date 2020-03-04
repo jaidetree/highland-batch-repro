@@ -1,6 +1,7 @@
 const assert = require("assert");
 const _ = require("highland");
 const MongoClient = require('mongodb').MongoClient;
+const MockMongo = require("./mock-mongo");
 
 // range :: (Number, Number) -> [Number]
 // Creates an array from start number up to end number
@@ -99,14 +100,12 @@ const opts = {
   useUnifiedTopology: true,
 };
 
+function mockMongoStream () {
+  return _(docs)
+    .toNodeStream({ objectMode: true });
+}
 
-async function main () {
-  const client = await MongoClient.connect(url, opts);
-  const db = client.db("test");
-  const col = db.collection("test");
-  await col.removeMany();
-  await col.insertMany(docs);
-
+function main () {
   // This function will explode in six seconds
   timeout(6000)
     .done(() => {
@@ -115,15 +114,12 @@ async function main () {
       process.exit(1);
     });
 
-  return _.of(col)
-    .flatMap(fetchDocs)
+  return _(mockMongoStream())
     .batch(11)
     .consume(logStream)
     .flatMap(_)
     .reduce(append, [])
     .toCallback((err, xs) => {
-      client.close();
-
       if (err) {
         console.error(err);
         process.exit(1);
